@@ -204,8 +204,6 @@ zori =
     names_to = "date",
     values_to = "rent_price"
   ) |>
-  drop_na("rent_price") |>
-  select( -"region_id",-"state_name",-"metro", -"size_rank") |>
   mutate(
   date = format(
     as.Date(gsub
@@ -228,7 +226,6 @@ zip_codes =
         "Richmond" ~ "Richmond County")
     
   )|>
-  select(-"county",-"file_date",-"state_fips", -"county_fips",) |>
   relocate(zip_code,neighborhood, county_name,county_code)
 
 ```
@@ -238,9 +235,7 @@ zip_codes =
 
 ```{r}
 zori_zip =
-  left_join(zori,zip_codes, by = c("zip_code", "county_name"))
-
-zori_zip =  
-  select(date, county_name, neighborhood, rent_price, city, state, zip_code, -"region_type")
+  left_join(zori,zip_codes, by = c("zip_code", "county_name")) |>
+  relocate(date,county_name, neighborhood,rent_price)
 ```
 
