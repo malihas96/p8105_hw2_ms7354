@@ -14,9 +14,7 @@ library(readxl)
 
 
 
-###Problem 1
-
-`First, clean the data in pols-month.csv. Use separate() to break up the variable mon into integer variables year, month, and day; replace month number with month name; create a president variable taking values gop and dem, and remove prez_dem and prez_gop; and remove the day variable.`
+### Problem 1
 
 
 ```{r}
@@ -30,7 +28,7 @@ mon_separated <- pols_month_df |>
     year  = as.integer(year),
     month = as.integer(month),
     date  = as.integer(date),
-    month = factor(month, levels = 1:12, labels = base::month.name, ordered = TRUE),
+    month = month.name[month],
     president = 
       case_match(
         prez_gop, 
@@ -43,7 +41,6 @@ mon_separated <- pols_month_df |>
 ```
 
 
-`Second, clean the data in snp.csv using a similar process to the above. For consistency across datasets, arrange according to year and month, and organize so that year and month are the leading columns.`
 
 
 ```{r}
@@ -57,22 +54,18 @@ snp_date_separated <- snp_df |>
     day = as.integer(day),
     month = as.integer(month),
     year = as.integer(year),
-    month = factor(month, levels = 1:12, labels = base::month.name, ordered = TRUE),
-     year4 = case_when(
-      nchar(as.character(year)) == 4 ~ year,          
-      year <= 24                     ~ 2000L + year,  
-      TRUE                           ~ 1900L + year  
-    )
-  ) |>
-  
-  select(-day, -year) |>
-  
-  relocate(year4, month) |>
-  
-  rename(year = year4)
+    month = month.name[month],
+     year = case_when(
+      year <= 24         ~ 2000L + year,
+      TRUE               ~ 1900L + year
+      
+  )
+    )|>
+  select(-day) |>
+  relocate(year, month)
 ```
 
-`Third, tidy the unemployment data so that it can be merged with the previous datasets. This process will involve switching from “wide” to “long” format; ensuring that key variables have the same name; and ensuring that key variables take the same values.`
+
 
 ```{r}
 unemployment_df =
@@ -84,7 +77,7 @@ unemployment_tidy_df =
     unemployment_df, 
     jan:dec,
     names_to = "month", 
-    values_to = "percentage_umemployed") |>
+    values_to = "percentage_unemployed") |>
   mutate(
     month = factor(
       str_to_title(month),
@@ -96,30 +89,26 @@ unemployment_tidy_df =
   relocate(year,month)
 ```
 
-`joining the three datasets. Join the datasets by merging snp into pols, and merging unemployment into the result.`
+`Joining the three datasets.`
 
 ```{r}
 snp_pols =
-  left_join(snp_date_separated,mon_separated, by = c("year", "month"))
+  left_join(mon_separated,snp_date_separated, by = c("year", "month"))
 
 final_df =
-  left_join(snp_pols,unemployment_tidy_df, by = c("year", "month"))
+  left_join(unemployment_tidy_df,snp_pols, by = c("year", "month")) |>
+  relocate("year", "month", "president", "percentage_unemployed", "close")
+
+head(final_df)
+tail(final_df)
 ```
 
-`Insert the blurb for Problem 1.`
+`The pol_mon dataset contains data related to national politicians who are democratic or republican at any given time. The snp dataset contains data related to Standard & Poor's stock market index (S&P) which is usually used as a representative measure of stock market as a whole. The umemployment dataset contains information about percentage of unemployment by year and month. The final dataset that contains the above mentioned three datasets gives us information on when democratic or republican politicians are elected and the s&p stock market price and unemployment percentages over the period of years. The final dataset has 1385 observations, and ranges from 1948 to 2015, so a range of 67 years, and the key varaiables are year, month, percent_unemployed, president and close.`
 
 
 
 ### Problem 2
 
-`Read and clean the Mr. Trash Wheel sheet:
-
-specify the sheet in the Excel file and to omit non-data entries (rows with notes / figures; columns containing notes) using arguments in read_excel
-use reasonable variable names
-omit rows that do not include dumpster-specific data
-round the number of sports balls to the nearest integer and converts the result to an integer variable (using as.integer)`
-
-###The mr_trash, prof_trash and gwynnda dataframe should have the last row removed.
 ```{r}
 mr_trash <- readxl::read_excel("./data/202509 Trash Wheel Collection Data.xlsx",
   sheet = "Mr. Trash Wheel",
@@ -134,7 +123,7 @@ mr_trash <- readxl::read_excel("./data/202509 Trash Wheel Collection Data.xlsx",
   select( -"date") |>
   relocate(year, month)
 ```
-`Use a similar process to import, clean, and organize the data for Professor Trash Wheel and Gwynnda, and combine this with the Mr. Trash Wheel dataset to produce a single tidy dataset. To keep track of which Trash Wheel is which, you may need to add an additional variable to both datasets before combining.`
+
 
 ```{r}
 prof_trash <- readxl::read_excel("./data/202509 Trash Wheel Collection Data.xlsx",
@@ -148,6 +137,8 @@ prof_trash <- readxl::read_excel("./data/202509 Trash Wheel Collection Data.xlsx
   trash_name = "prof_trash",
   year = as.numeric(year)
   )
+
+
 ```
 
 
@@ -171,7 +162,10 @@ gwynnda <- readxl::read_excel("./data/202509 Trash Wheel Collection Data.xlsx",
 trash_all =
   bind_rows(mr_trash,prof_trash,gwynnda) |>
   janitor::clean_names() |>
-  select(trash_name, everything())
+  select(trash_name, everything()) |>
+  relocate(trash_name, year, month, dumpster)
+
+prof_weight_tons <- sum(prof_trash$weight_tons, na.rm = TRUE)
 
 
 trash_tidy_all = 
@@ -185,13 +179,22 @@ trash_tidy_all =
   
 ```
 
-`Insert blurb.`
+```{r}
+cigarrette_buds_gwynnda =
+  bind_rows(mr_trash,prof_trash,gwynnda) |>
+  janitor::clean_names() |>
+  select(trash_name, everything()) |>
+  relocate(trash_name, year, month, dumpster) |>
+  filter(trash_name == "gwynnda", year == 2022, month %in% c("June","Jun")) |>
+  summarise(total_cig_butts = sum(cigarette_butts, na.rm = TRUE))
+```
+
+`The resulting dataset is trash_all which contains the trash in weight (tons) and volume(cubic yards) along with the different types of trash collected accross a period of time. It contains the trash that has been collected from Mr. Trash Wheel, Professor Trash Wheel and Gwynns Fall Trash Wheel which are the names given to the different trash wheel at different locations. The trash_all dataset has 1188 observations with data collected from 2014 up until 2025. The key variables are year, month, trash_name, weight_tons, and volume_cubic_yd. The total weight in tons of trash collected by Professor Trash Wheel is 282.26 in tons. The total number of cigarrette butts collected by gwynnda in 2022 was 18120.`
 
 
 
 ### Problem 3
-
-`Create a single, well-organized dataset with all the information contained in these data files. To that end: import, clean, tidy, and otherwise wrangle each of these datasets; check for completeness and correctness across datasets (e.g. by viewing individual datasets and monitoring warning messages); merge to create a single, final dataset; and organize this so that variables and observations are in meaningful orders.`
+`
 
 
 ```{r}
@@ -236,6 +239,30 @@ zip_codes =
 ```{r}
 zori_zip =
   left_join(zori,zip_codes, by = c("zip_code", "county_name")) |>
-  relocate(date,county_name, neighborhood,rent_price)
+  relocate(date,county_name, neighborhood,rent_price,zip_code) |>
+  mutate(
+    zip_code = as.character(zip_code)
+  )
+  head(zori_zip)
+skimr::skim(zori_zip)
+```
+
+`There are a total of 17284 observations in this resulting tidy dataset which I have indicated as zori_zip. There are 149 unique zip codes and 42 unique neighborhoods.`
+
+
+```{r}
+zori_zip =
+  left_join(zori,zip_codes, by = c("zip_code", "county_name")) |>
+  relocate(date,county_name, neighborhood,rent_price,zip_code)
+
+inner_join(zori,zip_codes, by = "zip_code", "county")
+zori_zip_missing =
+  inner_join(zori,zip_codes, by = c("zip_code","county_name")) |>
+  relocate(date,county_name, neighborhood,rent_price,zip_code) |>
+  mutate(
+    zip_code = as.character(zip_code)
+  )
+  skimr::skim(zori_zip_missing)
+
 ```
 
