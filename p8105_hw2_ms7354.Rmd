@@ -194,7 +194,6 @@ cigarrette_buds_gwynnda =
 
 
 ### Problem 3
-`
 
 
 ```{r}
@@ -208,10 +207,8 @@ zori =
     values_to = "rent_price"
   ) |>
   mutate(
-  date = format(
-    as.Date(gsub
-        ("^x(\\d{4})_(\\d{2})_(\\d{2})$", "\\1-\\2-\\3", date),
-        "%Y-%m-%d"),"%d/%m/%Y")
+  date = str_remove(date,"x"),
+    date = ymd(date)
   )
 
 
@@ -234,16 +231,19 @@ zip_codes =
 ```
 
 
-`Joinning both the datasets.`
+`Joining both the datasets. Before joining I want to look which observations might be missing or NA.`
 
 ```{r}
+missing_values = 
+  anti_join(zori,zip_codes)
+#Queens county zip code 11693 has 116 obs that have NA rent price.
+
 zori_zip =
   left_join(zori,zip_codes, by = c("zip_code", "county_name")) |>
   relocate(date,county_name, neighborhood,rent_price,zip_code) |>
   mutate(
     zip_code = as.character(zip_code)
   )
-  head(zori_zip)
 skimr::skim(zori_zip)
 ```
 
@@ -255,14 +255,47 @@ zori_zip =
   left_join(zori,zip_codes, by = c("zip_code", "county_name")) |>
   relocate(date,county_name, neighborhood,rent_price,zip_code)
 
-inner_join(zori,zip_codes, by = "zip_code", "county")
 zori_zip_missing =
-  inner_join(zori,zip_codes, by = c("zip_code","county_name")) |>
-  relocate(date,county_name, neighborhood,rent_price,zip_code) |>
+  anti_join(zip_codes,zori, by = "zip_code") |>
   mutate(
     zip_code = as.character(zip_code)
   )
+
   skimr::skim(zori_zip_missing)
 
 ```
+`There are 171 zip codes that appear in zip_codes dataset but not in the zori dataset. Some examples of missing zip codes from the zori dataset are as follows:`
+
+```{r}
+head(zori_zip_missing, 6) |>
+knitr::kable()
+```
+
+```{r}
+price_change = zori_zip |>
+  filter(
+    date %in% c ("2020-01-31","2021-01-31")) |>
+  select(zip_code,county_name,neighborhood,date, rent_price) |>
+  pivot_wider(
+    names_from = date,
+    values_from = rent_price) |> # separated the date columns by rent price so now they show the difference or change in rent price. 
+  mutate(
+    county_name = 
+        case_match(
+        county_name,
+        "Bronx County" ~ "The Bronx",
+        "Kings County" ~ "Brooklyn",
+        "New York County" ~ "Manhattan",
+        "Queens County" ~ "Queens",
+        "Richmond County" ~ "Staten Island"),
+    price_fluc = `2021-01-31` - `2020-01-31`) |>
+    drop_na(neighborhood) |>
+    rename(bourough = "county_name") |>
+    arrange(price_fluc)
+  
+head(price_change, 10) |>
+knitr::kable()
+```
+`In the table above, we can see that the largest drop in rent price was $913 in the Manhattan bourough, in lower Manhattan neighborhood. On January 31st of 2020 the rent price was $6334 and exactly one year later it dropped to $5422.`
+
 
